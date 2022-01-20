@@ -44,6 +44,8 @@ type Message struct {
 	TxnData                   []byte               `json:"txn_data,omitempty"`
 	MetricsLength             int                  `json:"metrics_length,omitempty"`
 	CustomEventsLength        int                  `json:"custom_events_length,omitempty"`
+	SpanEventsLength          int                  `json:"span_events_length,omitempty"`
+	ErrorEventsLength         int                  `json:"error_events_length,omitempty"`
 	TransactionName           string               `json:"transaction_name,omitempty"`
 	URI                       string               `json:"uri,omitempty"`
 	SlowSQLsLength            int                  `json:"slow_sq_ls_length,omitempty"`
@@ -53,6 +55,11 @@ type Message struct {
 	Metrics                   []Metric             `json:"metrics,omitempty"`
 	Errors                    []Error              `json:"errors,omitempty"`
 	SlowSQL                   []SlowSQL            `json:"slow_sql,omitempty"`
+	UnixTimestampMillis       float64
+	DurationMillis            float64
+	GUID                      string
+	TraceData                 string
+	ForcePersist              bool
 }
 
 type Error struct {
@@ -193,6 +200,8 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 	txn.Init(tbl.Bytes, tbl.Pos)
 	msg.MetricsLength = txn.MetricsLength()
 	msg.CustomEventsLength = txn.CustomEventsLength()
+	msg.SpanEventsLength = txn.SpanEventsLength()
+	msg.ErrorEventsLength = txn.ErrorEventsLength()
 	msg.SlowSQLsLength = txn.SlowSqlsLength()
 	msg.TransactionName = string(txn.Name())
 	msg.URI = string(txn.Uri())
@@ -208,6 +217,15 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 	msg.Metrics = GrabMetrics(txn)
 	msg.Errors = GrabErrors(txn)
 	msg.SlowSQL = GrabSlowSQL(txn)
+
+	if trace := txn.Trace(nil); trace != nil {
+		data := trace.Data()
+		msg.UnixTimestampMillis = trace.Timestamp()
+		msg.DurationMillis = trace.Duration()
+		msg.GUID = string(trace.Guid())
+		msg.ForcePersist = trace.ForcePersist()
+		msg.TraceData = string(data)
+	}
 }
 
 func GrabErrors(txn protocol.Transaction) []Error {
