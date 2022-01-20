@@ -47,6 +47,21 @@ type Message struct {
 	URI                       string               `json:"uri,omitempty"`
 	SlowSQLsLength            int                  `json:"slow_sq_ls_length,omitempty"`
 	PID                       int32                `json:"pid,omitempty"`
+	SyntheticsResourceID      string               `json:"synthetics_resource_id,omitempty"`
+	TxnEvent                  string               `json:"txn_event,omitempty"`
+	Metrics                   []Metric             `json:"metrics,omitempty"`
+}
+
+type Metric struct {
+	Name       string  `json:"name,omitempty"`
+	Count      float64 `json:"count,omitempty"`
+	Total      float64 `json:"total,omitempty"`
+	Exclusive  float64 `json:"exclusive,omitempty"`
+	Min        float64 `json:"min,omitempty"`
+	Max        float64 `json:"max,omitempty"`
+	SumSquares float64 `json:"sum_squares,omitempty"`
+	Forced     bool    `json:"forced,omitempty"`
+	Scoped     bool    `json:"scoped,omitempty"`
 }
 
 type Header struct {
@@ -162,10 +177,40 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 	msg.TransactionName = string(txn.Name())
 	msg.URI = string(txn.Uri())
 	msg.PID = txn.Pid()
-	//msg.TxnData = data
+	if x := txn.SyntheticsResourceId(); len(x) > 0 {
+		msg.SyntheticsResourceID = string(x)
+	}
+	if event := txn.TxnEvent(nil); event != nil {
+		msg.TxnEvent = string(event.Data())
+	}
 	// check for events
 	// errors etc.
+	msg.Metrics = GrabMetrics(txn)
+}
 
+func GrabMetrics(txn protocol.Transaction) []Metric {
+	var m protocol.Metric
+	var data protocol.MetricData
+	n := txn.MetricsLength()
+	var metrics []Metric
+	for i := 0; i < n; i++ {
+		var metric Metric
+		txn.Metrics(&m, i)
+		m.Data(&data)
+
+		metric.Count = data.Count()
+		metric.Total = data.Total()
+		metric.Exclusive = data.Exclusive()
+		metric.Min = data.Min()
+		metric.Max = data.Max()
+		metric.SumSquares = data.SumSquares()
+		metric.Forced = data.Forced()
+		metric.Scoped = data.Scoped()
+		metric.Name = string(m.Name())
+		metrics = append(metrics, metric)
+	}
+
+	return metrics
 }
 
 func (b *NRConnectionBuilder) ReadDone() {
