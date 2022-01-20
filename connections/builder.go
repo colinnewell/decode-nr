@@ -43,6 +43,7 @@ type Message struct {
 	AgentRunID                []byte               `json:"agent_run_id,omitempty"`
 	TxnData                   []byte               `json:"txn_data,omitempty"`
 	MetricsLength             int                  `json:"metrics_length,omitempty"`
+	CustomEventsLength        int                  `json:"custom_events_length,omitempty"`
 	TransactionName           string               `json:"transaction_name,omitempty"`
 	URI                       string               `json:"uri,omitempty"`
 	SlowSQLsLength            int                  `json:"slow_sq_ls_length,omitempty"`
@@ -191,6 +192,7 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 	var txn protocol.Transaction
 	txn.Init(tbl.Bytes, tbl.Pos)
 	msg.MetricsLength = txn.MetricsLength()
+	msg.CustomEventsLength = txn.CustomEventsLength()
 	msg.SlowSQLsLength = txn.SlowSqlsLength()
 	msg.TransactionName = string(txn.Name())
 	msg.URI = string(txn.Uri())
