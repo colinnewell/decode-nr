@@ -50,6 +50,24 @@ type Message struct {
 	SyntheticsResourceID      string               `json:"synthetics_resource_id,omitempty"`
 	TxnEvent                  string               `json:"txn_event,omitempty"`
 	Metrics                   []Metric             `json:"metrics,omitempty"`
+	Errors                    []Error              `json:"errors,omitempty"`
+	SlowSQL                   []SlowSQL            `json:"slow_sql,omitempty"`
+}
+
+type Error struct {
+	Priority int32  `json:"priority,omitempty"`
+	Data     string `json:"data,omitempty"`
+}
+
+type SlowSQL struct {
+	ID          uint32 `json:"id,omitempty"`
+	Count       int32  `json:"count,omitempty"`
+	TotalMicros uint64 `json:"total_micros,omitempty"`
+	MinMicros   uint64 `json:"min_micros,omitempty"`
+	MaxMicros   uint64 `json:"max_micros,omitempty"`
+	MetricName  string `json:"metric_name,omitempty"`
+	Query       string `json:"query,omitempty"`
+	Params      string `json:"params,omitempty"`
 }
 
 type Metric struct {
@@ -186,6 +204,49 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 	// check for events
 	// errors etc.
 	msg.Metrics = GrabMetrics(txn)
+	msg.Errors = GrabErrors(txn)
+	msg.SlowSQL = GrabSlowSQL(txn)
+}
+
+func GrabErrors(txn protocol.Transaction) []Error {
+	var errors []Error
+	if n := txn.ErrorsLength(); n > 0 {
+		var e protocol.Error
+		for i := 0; i < n; i++ {
+			txn.Errors(&e, i)
+
+			errors = append(errors, Error{
+				Priority: e.Priority(),
+				Data:     string(e.Data()),
+			})
+		}
+	}
+	return errors
+}
+
+func GrabSlowSQL(txn protocol.Transaction) []SlowSQL {
+	var list []SlowSQL
+	if n := txn.SlowSqlsLength(); n > 0 {
+		var slowSQL protocol.SlowSQL
+
+		for i := 0; i < n; i++ {
+			txn.SlowSqls(&slowSQL, i)
+
+			slow := SlowSQL{}
+			slow.ID = slowSQL.Id()
+			slow.Count = slowSQL.Count()
+			slow.TotalMicros = slowSQL.TotalMicros()
+			slow.MinMicros = slowSQL.MinMicros()
+			slow.MaxMicros = slowSQL.MaxMicros()
+
+			slow.MetricName = string(slowSQL.Metric())
+			slow.Query = string(slowSQL.Query())
+			slow.Params = string(slowSQL.Params())
+
+			list = append(list, slow)
+		}
+	}
+	return list
 }
 
 func GrabMetrics(txn protocol.Transaction) []Metric {
