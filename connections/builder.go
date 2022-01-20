@@ -55,11 +55,11 @@ type Message struct {
 	Metrics                   []Metric             `json:"metrics,omitempty"`
 	Errors                    []Error              `json:"errors,omitempty"`
 	SlowSQL                   []SlowSQL            `json:"slow_sql,omitempty"`
-	UnixTimestampMillis       float64
-	DurationMillis            float64
-	GUID                      string
-	TraceData                 string
-	ForcePersist              bool
+	UnixTimestampMillis       float64              `json:"unix_timestamp_millis,omitempty"`
+	DurationMillis            float64              `json:"duration_millis,omitempty"`
+	GUID                      string               `json:"guid,omitempty"`
+	TraceData                 string               `json:"trace_data,omitempty"`
+	ForcePersist              bool                 `json:"force_persist,omitempty"`
 }
 
 type Error struct {
