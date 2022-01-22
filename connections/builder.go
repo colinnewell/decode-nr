@@ -2,6 +2,7 @@ package connections
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -51,14 +52,14 @@ type Message struct {
 	SlowSQLsLength            int                  `json:"slow_sq_ls_length,omitempty"`
 	PID                       int32                `json:"pid,omitempty"`
 	SyntheticsResourceID      string               `json:"synthetics_resource_id,omitempty"`
-	TxnEvent                  string               `json:"txn_event,omitempty"`
+	TxnEvent                  *json.RawMessage     `json:"txn_event,omitempty"`
 	Metrics                   []Metric             `json:"metrics,omitempty"`
 	Errors                    []Error              `json:"errors,omitempty"`
 	SlowSQL                   []SlowSQL            `json:"slow_sql,omitempty"`
 	UnixTimestampMillis       float64              `json:"unix_timestamp_millis,omitempty"`
 	DurationMillis            float64              `json:"duration_millis,omitempty"`
 	GUID                      string               `json:"guid,omitempty"`
-	TraceData                 string               `json:"trace_data,omitempty"`
+	TraceData                 *json.RawMessage     `json:"trace_data,omitempty"`
 	ForcePersist              bool                 `json:"force_persist,omitempty"`
 }
 
@@ -210,7 +211,10 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 		msg.SyntheticsResourceID = string(x)
 	}
 	if event := txn.TxnEvent(nil); event != nil {
-		msg.TxnEvent = string(event.Data())
+		m := make([]byte, len(event.Data()))
+		copy(m, event.Data())
+		j := json.RawMessage(m)
+		msg.TxnEvent = &j
 	}
 	// check for events
 	// errors etc.
@@ -224,7 +228,10 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 		msg.DurationMillis = trace.Duration()
 		msg.GUID = string(trace.Guid())
 		msg.ForcePersist = trace.ForcePersist()
-		msg.TraceData = string(data)
+		m := make([]byte, len(data))
+		copy(m, data)
+		j := json.RawMessage(m)
+		msg.TraceData = &j
 	}
 }
 
