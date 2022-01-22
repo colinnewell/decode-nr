@@ -35,7 +35,7 @@ You can then decode the bits of the output you're intersested in using `jq`.
 For example:
 
     decode-nr nr-traffic.pcap | \
-        jq '.[] | select(.client_messages) | .client_messages[] | select(.type == 3) | .transaction_name'
+        jq '.[] | select(.client_messages) | .client_messages[] | select(.type == "Transaction") | .transaction_name'
 
 ## Quality
 
