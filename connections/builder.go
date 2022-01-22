@@ -27,40 +27,45 @@ type NRConnection struct {
 }
 
 type Message struct {
-	AgentLanguage             string               `json:"agent_language,omitempty"`
-	AgentVersion              string               `json:"agent_version,omitempty"`
-	AppName                   string               `json:"app_name,omitempty"`
-	Data                      []byte               `json:"data,omitempty"`
-	DisplayHost               string               `json:"display_host,omitempty"`
-	Environment               string               `json:"environment,omitempty"`
-	Host                      string               `json:"host,omitempty"`
-	Labels                    string               `json:"labels,omitempty"`
-	License                   string               `json:"license,omitempty"`
-	RedirectCollector         string               `json:"redirect_collector,omitempty"`
-	SecurityPolicyToken       string               `json:"security_policy_token,omitempty"`
-	SupportedSecurityPolicies string               `json:"supported_security_policies,omitempty"`
-	Type                      protocol.MessageBody `json:"type,omitempty"`
-	Error                     string               `json:"error,omitempty"`
-	AgentRunID                []byte               `json:"agent_run_id,omitempty"`
-	TxnData                   []byte               `json:"txn_data,omitempty"`
-	MetricsLength             int                  `json:"metrics_length,omitempty"`
-	CustomEventsLength        int                  `json:"custom_events_length,omitempty"`
-	SpanEventsLength          int                  `json:"span_events_length,omitempty"`
-	ErrorEventsLength         int                  `json:"error_events_length,omitempty"`
-	TransactionName           string               `json:"transaction_name,omitempty"`
-	URI                       string               `json:"uri,omitempty"`
-	SlowSQLsLength            int                  `json:"slow_sq_ls_length,omitempty"`
-	PID                       int32                `json:"pid,omitempty"`
-	SyntheticsResourceID      string               `json:"synthetics_resource_id,omitempty"`
-	TxnEvent                  *json.RawMessage     `json:"txn_event,omitempty"`
-	Metrics                   []Metric             `json:"metrics,omitempty"`
-	Errors                    []Error              `json:"errors,omitempty"`
-	SlowSQL                   []SlowSQL            `json:"slow_sql,omitempty"`
-	UnixTimestampMillis       float64              `json:"unix_timestamp_millis,omitempty"`
-	DurationMillis            float64              `json:"duration_millis,omitempty"`
-	GUID                      string               `json:"guid,omitempty"`
-	TraceData                 *json.RawMessage     `json:"trace_data,omitempty"`
-	ForcePersist              bool                 `json:"force_persist,omitempty"`
+	AgentLanguage             string           `json:"agent_language,omitempty"`
+	AgentVersion              string           `json:"agent_version,omitempty"`
+	AppName                   string           `json:"app_name,omitempty"`
+	Data                      []byte           `json:"data,omitempty"`
+	DisplayHost               string           `json:"display_host,omitempty"`
+	Environment               string           `json:"environment,omitempty"`
+	Host                      string           `json:"host,omitempty"`
+	Labels                    string           `json:"labels,omitempty"`
+	License                   string           `json:"license,omitempty"`
+	RedirectCollector         string           `json:"redirect_collector,omitempty"`
+	SecurityPolicyToken       string           `json:"security_policy_token,omitempty"`
+	SupportedSecurityPolicies *json.RawMessage `json:"supported_security_policies,omitempty"`
+	Type                      string           `json:"type,omitempty"`
+	Error                     string           `json:"error,omitempty"`
+	AgentRunID                string           `json:"agent_run_id,omitempty"`
+	ReplyStatus               string           `json:"reply_status,omitempty"`
+	MetricsLength             int              `json:"metrics_length,omitempty"`
+	CustomEventsLength        int              `json:"custom_events_length,omitempty"`
+	SpanEventsLength          int              `json:"span_events_length,omitempty"`
+	ErrorEventsLength         int              `json:"error_events_length,omitempty"`
+	TransactionName           string           `json:"transaction_name,omitempty"`
+	URI                       string           `json:"uri,omitempty"`
+	SlowSQLsLength            int              `json:"slow_sq_ls_length,omitempty"`
+	PID                       int32            `json:"pid,omitempty"`
+	SyntheticsResourceID      string           `json:"synthetics_resource_id,omitempty"`
+	TxnEvent                  *json.RawMessage `json:"txn_event,omitempty"`
+	Metrics                   []Metric         `json:"metrics,omitempty"`
+	Errors                    []Error          `json:"errors,omitempty"`
+	SlowSQL                   []SlowSQL        `json:"slow_sql,omitempty"`
+	UnixTimestampMillis       float64          `json:"unix_timestamp_millis,omitempty"`
+	DurationMillis            float64          `json:"duration_millis,omitempty"`
+	GUID                      string           `json:"guid,omitempty"`
+	TraceData                 *json.RawMessage `json:"trace_data,omitempty"`
+	ForcePersist              bool             `json:"force_persist,omitempty"`
+	ConnectReply              *json.RawMessage `json:"connect_reply,omitempty"`
+	ConnectTimestamp          uint64           `json:"connect_timestamp,omitempty"`
+	HarvestFrequency          uint16           `json:"harvest_frequency,omitempty"`
+	SamplingTarget            uint16           `json:"sampling_target,omitempty"`
+	SecurityPolicies          *json.RawMessage `json:"security_policies,omitempty"`
 }
 
 type Error struct {
@@ -143,20 +148,48 @@ func (b *NRConnectionBuilder) readMessage(s *tcp.TimeCaptureReader, messages *[]
 
 	m := protocol.GetRootAsMessage(msg, 0)
 	message := Message{
-		Type: m.DataType(),
+		Type: m.DataType().String(),
 	}
 	flatbuffers.NewBuilder(0)
 	switch m.DataType() {
 	case protocol.MessageBodyAppReply:
+		decodeReply(&message, m)
 	case protocol.MessageBodyNONE:
 	case protocol.MessageBodyTransaction:
-		readTransaction(&message, m, msg)
+		readTransaction(&message, m)
 	case protocol.MessageBodyApp:
 		readApp(&message, m)
 	}
 	*messages = append(*messages, message)
 
 	return nil
+}
+
+func decodeReply(msg *Message, pm *protocol.Message) {
+	var tbl flatbuffers.Table
+
+	if !pm.Data(&tbl) {
+		return
+	}
+
+	var reply protocol.AppReply
+
+	reply.Init(tbl.Bytes, tbl.Pos)
+	msg.ReplyStatus = reply.Status().String()
+	msg.ConnectReply = jsonPtr(reply.ConnectReply())
+	msg.SecurityPolicies = jsonPtr(reply.SecurityPolicies())
+	msg.ConnectTimestamp = reply.ConnectTimestamp()
+	msg.SamplingTarget = reply.SamplingTarget()
+}
+
+func jsonPtr(b []byte) *json.RawMessage {
+	if len(b) == 0 {
+		return nil
+	}
+	m := make([]byte, len(b))
+	copy(m, b)
+	j := json.RawMessage(m)
+	return &j
 }
 
 func readApp(msg *Message, pm *protocol.Message) {
@@ -180,10 +213,10 @@ func readApp(msg *Message, pm *protocol.Message) {
 	msg.Host = string(app.Host())
 	msg.DisplayHost = string(app.DisplayHost())
 	msg.SecurityPolicyToken = string(app.SecurityPolicyToken())
-	msg.SupportedSecurityPolicies = string(app.SupportedSecurityPolicies())
+	msg.SupportedSecurityPolicies = jsonPtr(app.SupportedSecurityPolicies())
 }
 
-func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
+func readTransaction(msg *Message, pm *protocol.Message) {
 	var tbl flatbuffers.Table
 
 	if !pm.Data(&tbl) {
@@ -196,7 +229,7 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 		msg.Error = "missing agent run id for txn data command"
 		return
 	}
-	//msg.AgentRunID = id
+	msg.AgentRunID = string(id)
 	var txn protocol.Transaction
 	txn.Init(tbl.Bytes, tbl.Pos)
 	msg.MetricsLength = txn.MetricsLength()
@@ -211,10 +244,7 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 		msg.SyntheticsResourceID = string(x)
 	}
 	if event := txn.TxnEvent(nil); event != nil {
-		m := make([]byte, len(event.Data()))
-		copy(m, event.Data())
-		j := json.RawMessage(m)
-		msg.TxnEvent = &j
+		msg.TxnEvent = jsonPtr(event.Data())
 	}
 	// check for events
 	// errors etc.
@@ -228,10 +258,7 @@ func readTransaction(msg *Message, pm *protocol.Message, data []byte) {
 		msg.DurationMillis = trace.Duration()
 		msg.GUID = string(trace.Guid())
 		msg.ForcePersist = trace.ForcePersist()
-		m := make([]byte, len(data))
-		copy(m, data)
-		j := json.RawMessage(m)
-		msg.TraceData = &j
+		msg.TraceData = jsonPtr(data)
 	}
 }
 
