@@ -30,7 +30,6 @@ type Message struct {
 	AgentLanguage             string           `json:"agent_language,omitempty"`
 	AgentVersion              string           `json:"agent_version,omitempty"`
 	AppName                   string           `json:"app_name,omitempty"`
-	Data                      []byte           `json:"data,omitempty"`
 	DisplayHost               string           `json:"display_host,omitempty"`
 	Environment               string           `json:"environment,omitempty"`
 	Host                      string           `json:"host,omitempty"`
